@@ -29,12 +29,12 @@ func Test_getUser_1(t *testing.T) {
 	if uid == 1000 {
 		t.Log("uid passed.")
 	} else {
-		t.Errorf("uid failed: %i", uid)
+		t.Errorf("uid failed: %v", uid)
 	}
 	if gid == 1000 {
 		t.Log("git passed.")
 	} else {
-		t.Errorf("gid failed: %i", gid)
+		t.Errorf("gid failed: %v", gid)
 	}
 }
 

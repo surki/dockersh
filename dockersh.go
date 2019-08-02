@@ -5,11 +5,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/docker/libcontainer/user"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/docker/libcontainer/user"
 )
 
 func main() {
@@ -34,6 +35,11 @@ func getInterpolatedConfig(config *Configuration, configInterpolations configInt
 	config.Shell = tmplConfigVar(config.Shell, &configInterpolations)
 	config.UserCwd = tmplConfigVar(config.UserCwd, &configInterpolations)
 	config.ContainerName = tmplConfigVar(config.ContainerName, &configInterpolations)
+
+	for i, o := range config.DockerOpt {
+		config.DockerOpt[i] = tmplConfigVar(o, &configInterpolations)
+	}
+
 	return nil
 }
 
@@ -117,6 +123,7 @@ func realMain() int {
 		fmt.Fprintf(os.Stderr, "Could not load config: %v\n", err)
 		return 1
 	}
+	config.UserId = uid
 	configInterpolations := configInterpolation{homedir, username}
 	err = getInterpolatedConfig(&config, configInterpolations)
 	if err != nil {

@@ -1,7 +1,7 @@
 dockersh: test
-	go fmt && go build -ldflags "-linkmode external -extldflags -static"
+	go fmt && go build -ldflags '-linkmode external -extldflags "-fno-PIC -static"'
 	strip dockersh
- 
+
 test:
 	PATH=testutils/:$(PATH) go test -coverprofile=profile.out
 

@@ -40,6 +40,7 @@ type Configuration struct {
 	EnableUserDockerOpt         bool
 	ReverseForward              []string
 	EnableUserReverseForward    bool
+	UserId                      int
 }
 
 func (c Configuration) Dump() string {

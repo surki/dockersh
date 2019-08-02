@@ -13,6 +13,10 @@ import (
 
 func dockerVersionCheck() (err error) {
 	versionString, err := getDockerVersionString()
+	if err != nil {
+		return err
+	}
+
 	// Docker version 1.1.2, build d84a070
 	versionStringParts := strings.Split(versionString, " ")
 	versionParts := strings.Split(versionStringParts[2], ".")
@@ -95,7 +99,7 @@ func dockercmdline(config Configuration) ([]string, error) {
 	if os.Getenv("SHELL") != "/usr/local/bin/dockersh" {
 		thisBinary, _ = filepath.Abs(os.Args[0])
 	}
-	var cmdtxt = []string{"run", "-d", "-u", config.ContainerUsername,
+	var cmdtxt = []string{"run", "-d", "-u", fmt.Sprintf("%d", config.UserId),
 		"-v", "/etc/passwd:/etc/passwd:ro", "-v", "/etc/group:/etc/group:ro",
 		"--cap-drop", "SETUID", "--cap-drop", "SETGID", "--cap-drop", "NET_RAW",
 		"--cap-drop", "MKNOD"}

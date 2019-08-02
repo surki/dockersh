@@ -10,7 +10,7 @@ func Test_templConfigVar_1(t *testing.T) {
 	if out == "/bin/bash" {
 		t.Log("OK")
 	} else {
-		t.Error("Expected /bin/bash, got %s", out)
+		t.Errorf("Expected /bin/bash, got %s", out)
 	}
 }
 

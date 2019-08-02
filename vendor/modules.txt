@@ -1,0 +1,39 @@
+# github.com/coreos/go-namespaces v0.0.0-20140625151840-470ea0b69ef0
+github.com/coreos/go-namespaces/namespace
+# github.com/coreos/go-systemd v0.0.0-20140503193739-f743bc15d6bd
+github.com/coreos/go-systemd/dbus
+# github.com/docker/docker v1.1.2
+github.com/docker/docker/pkg/mount
+github.com/docker/docker/pkg/symlink
+# github.com/docker/libcontainer v1.2.0
+github.com/docker/libcontainer
+github.com/docker/libcontainer/namespaces
+github.com/docker/libcontainer/user
+github.com/docker/libcontainer/cgroups
+github.com/docker/libcontainer/cgroups/fs
+github.com/docker/libcontainer/cgroups/systemd
+github.com/docker/libcontainer/mount
+github.com/docker/libcontainer/network
+github.com/docker/libcontainer/apparmor
+github.com/docker/libcontainer/console
+github.com/docker/libcontainer/label
+github.com/docker/libcontainer/netlink
+github.com/docker/libcontainer/security/capabilities
+github.com/docker/libcontainer/security/restrict
+github.com/docker/libcontainer/syncpipe
+github.com/docker/libcontainer/system
+github.com/docker/libcontainer/utils
+github.com/docker/libcontainer/devices
+github.com/docker/libcontainer/mount/nodes
+github.com/docker/libcontainer/selinux
+# github.com/godbus/dbus v0.0.0-20140327205830-cb98efbb933d
+github.com/godbus/dbus
+# github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2
+github.com/syndtr/gocapability/capability
+# gopkg.in/gcfg.v1 v1.2.3
+gopkg.in/gcfg.v1
+gopkg.in/gcfg.v1/scanner
+gopkg.in/gcfg.v1/token
+gopkg.in/gcfg.v1/types
+# gopkg.in/warnings.v0 v0.1.2
+gopkg.in/warnings.v0

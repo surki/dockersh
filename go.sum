@@ -1,0 +1,16 @@
+github.com/coreos/go-namespaces v0.0.0-20140625151840-470ea0b69ef0 h1:TNJCP60jSrN1pyqutv98kCHaplPk5RgTYK4NlMzt5Mc=
+github.com/coreos/go-namespaces v0.0.0-20140625151840-470ea0b69ef0/go.mod h1:ab5raiRUSCMfRNsPPaowRTpUX7t0LqMWKj13wZZuNno=
+github.com/coreos/go-systemd v0.0.0-20140503193739-f743bc15d6bd h1:h0Hgt5wEZvNOw99WouiRiOgW6FBJ/jfh0P7Q7++VNoA=
+github.com/coreos/go-systemd v0.0.0-20140503193739-f743bc15d6bd/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
+github.com/docker/docker v1.1.2 h1:j1xGcLu2iSx9l9syF7VJoqZgsjE05vCRecvWJi/qkkM=
+github.com/docker/docker v1.1.2/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
+github.com/docker/libcontainer v1.2.0 h1:Gvq1FDdzhLhC2TIJ7jtP4k2ba9J7dXd+Yron9QMNy8c=
+github.com/docker/libcontainer v1.2.0/go.mod h1:osvj61pYsqhNCMLGX31xr7klUBhHb/ZBuXS0o1Fvwbw=
+github.com/godbus/dbus v0.0.0-20140327205830-cb98efbb933d h1:8NlgDCuwTUI40bcI9PMqyobhVGijEgPitL6Rdb1E/sw=
+github.com/godbus/dbus v0.0.0-20140327205830-cb98efbb933d/go.mod h1:/YcGZj5zSblfDWMMoOzV4fas9FZnQYTkDnsGvmh2Grw=
+github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2 h1:b6uOv7YOFK0TYG7HtkIgExQo+2RdLuwRft63jn2HWj8=
+github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
+gopkg.in/gcfg.v1 v1.2.3 h1:m8OOJ4ccYHnx2f4gQwpno8nAX5OGOh7RLaaz0pj3Ogs=
+gopkg.in/gcfg.v1 v1.2.3/go.mod h1:yesOnuUOFQAhST5vPY4nbZsb/huCgGGXlipJsBn0b3o=
+gopkg.in/warnings.v0 v0.1.2 h1:wFXVbFY8DY5/xOe1ECiWdKCzZlxgshcYVNkBHstARME=
+gopkg.in/warnings.v0 v0.1.2/go.mod h1:jksf8JmL6Qr/oQM2OXTHunEvvTAsrWBLb6OOjuVWRNI=

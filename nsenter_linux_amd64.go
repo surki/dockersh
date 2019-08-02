@@ -42,7 +42,8 @@ func nsenterexec(containerName string, uid int, gid int, groups []int, wd string
 	if err != nil {
 		panic(fmt.Sprintf("Could not get SHA for container: %s %s", err.Error(), containerName))
 	}
-	containerConfigLocation := fmt.Sprintf("/var/lib/docker/execdriver/native/%s/container.json", containerSha)
+	// TODO: This whole thing needs to be done properly
+	containerConfigLocation := fmt.Sprintf("/var/lib/docker/containers/%s/config.v2.json", containerSha)
 	container, err := loadContainer(containerConfigLocation)
 	if err != nil {
 		panic(fmt.Sprintf("Could not load container configuration: %v", err))
@@ -80,8 +81,8 @@ func nsenterexec(containerName string, uid int, gid int, groups []int, wd string
 		namespace.Close(nsfd)
 	}
 
-	pid, err := ForkExec(shell, []string{"sh"}, &ProcAttr{
-		//Env:
+	pid, err := ForkExec(shell, []string{shell, "--login"}, &ProcAttr{
+		Env: os.Environ(),
 		Dir: wd,
 		//sys.Setsid
 		//sys.Setpgid

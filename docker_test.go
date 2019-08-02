@@ -10,7 +10,7 @@ func Test_dockerPid_1(t *testing.T) {
 		t.Errorf("Error from dockerpid: %v", err)
 	}
 	if pid != 666 {
-		t.Errorf("PID was %i expected 666", pid)
+		t.Errorf("PID was %v expected 666", pid)
 	}
 }
 
@@ -20,7 +20,7 @@ func Test_dockerSha_1(t *testing.T) {
 		t.Errorf("Error from dockersha: %v", err)
 	}
 	if sha != "666" {
-		t.Errorf("SHA was %s expected 666", sha)
+		t.Errorf("SHA was %v expected 666", sha)
 	}
 }
 
@@ -31,7 +31,7 @@ func Test_dockerStart(t *testing.T) {
 		t.Errorf("Error from dockerstart: %v", err)
 	}
 	if pid != 666 {
-		t.Errorf("PID was %i expected 666", pid)
+		t.Errorf("PID was %v expected 666", pid)
 	}
 }
 
