@@ -1,168 +1,183 @@
 package main
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strconv"
-	"strings"
+	"syscall"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/client"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/net/context"
 )
 
-func dockerVersionCheck() (err error) {
-	versionString, err := getDockerVersionString()
+func isContainerRunning(name string) (string, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return "", err
+	}
+
+	filter := filters.NewArgs()
+	filter.Add("name", name)
+	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{Filters: filter})
+	if err != nil {
+		return "", err
+	}
+
+	if len(containers) >= 1 {
+		return containers[0].ID, nil
+	}
+
+	return "", nil
+}
+
+func containerID(name string) (string, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return "", err
+	}
+
+	filter := filters.NewArgs()
+	filter.Add("name", name)
+	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{All: true, Filters: filter})
+	if err != nil {
+		return "", err
+	}
+
+	if len(containers) >= 1 {
+		return containers[0].ID, nil
+	}
+
+	return "", nil
+}
+
+func startContainer(config Configuration) (string, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return "", err
+	}
+
+	id, err := containerID(config.ContainerName)
+	logrus.Debugf("Checking if container with name %v already exists: %v", config.ContainerName, id != "")
+
+	if id != "" {
+		logrus.Debugf("Removing container, name: %v id: %v", config.ContainerName, id)
+		err := cli.ContainerRemove(context.Background(), id,
+			types.ContainerRemoveOptions{})
+		if err != nil {
+			return "", err
+		}
+	}
+
+	binds := []string{"/etc/passwd:/etc/passwd:ro", "/etc/group:/etc/group:ro"}
+
+	var init []string
+	if config.Entrypoint == "internal" {
+		init = []string{"/bin/sh", "-c", "trap 'exit 0;' SIGINT SIGTERM; while true; do sleep 1000& wait $!; done"}
+	} else {
+		init = []string{config.Entrypoint}
+	}
+	logrus.Debugf("Entry point is: %v", init)
+
+	var env []string
+	for _, e := range config.Env {
+		env = append(env, e)
+	}
+
+	if config.MountTmp {
+		logrus.Debugf("Bind mounting /tmp")
+		binds = append(binds, "/tmp:/tmp:rw")
+	}
+	if config.MountHome {
+		h := fmt.Sprintf("%s:%s:rw", config.MountHomeFrom, config.MountHomeTo)
+		logrus.Debugf("Bind mounting home: %v", h)
+		binds = append(binds, h)
+	}
+	if config.MountDockerSocket {
+		logrus.Debugf("Bind mounting %v", config.DockerSocket)
+		binds = append(binds, config.DockerSocket+":/var/run/docker.sock")
+	}
+
+	hostname, _ := os.Hostname()
+
+	ctx := context.Background()
+
+	resp, err := cli.ContainerCreate(ctx,
+		&container.Config{
+			Hostname:        hostname,
+			User:            fmt.Sprintf("%d:%d", config.UserId, config.GroupId),
+			AttachStdin:     false,
+			AttachStdout:    false,
+			AttachStderr:    false,
+			Tty:             false,
+			OpenStdin:       false,
+			StdinOnce:       false,
+			Env:             env,
+			Healthcheck:     nil,
+			Image:           config.ImageName,
+			Volumes:         map[string]struct{}{},
+			WorkingDir:      config.UserCwd,
+			Entrypoint:      init,
+			NetworkDisabled: false,
+			Labels:          map[string]string{"user": config.ContainerUsername},
+			StopSignal:      "",
+			StopTimeout:     nil,
+			Shell:           []string{"/bin/bash"},
+		},
+		&container.HostConfig{
+			Binds:      binds,
+			AutoRemove: true,
+			// Applicable to UNIX platforms
+			CapAdd:          []string{},
+			CapDrop:         []string{"SETUID", "SETGID", "NET_RAW", "MKNOD"},
+			Capabilities:    []string{},
+			Privileged:      false,
+			PublishAllPorts: false,
+			ReadonlyRootfs:  true,
+			SecurityOpt:     []string{}, // TODO: Enable selinux etc
+			//UsernsMode:      UsernsMode, // TODO: Enable the user namespace to use for the container
+		},
+		nil, config.ContainerName)
+	if err != nil {
+		return "", err
+	}
+
+	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+		return "", err
+	}
+
+	return resp.ID, nil
+}
+
+func execContainer(id string, config Configuration) error {
+	// TODO: Move to proper docker client API
+
+	dockerBinary, err := exec.LookPath("docker")
 	if err != nil {
 		return err
 	}
 
-	// Docker version 1.1.2, build d84a070
-	versionStringParts := strings.Split(versionString, " ")
-	versionParts := strings.Split(versionStringParts[2], ".")
-	major, _ := strconv.Atoi(versionParts[0])
-	minor, _ := strconv.Atoi(versionParts[1])
-	if major > 1 {
-		return nil
+	args := []string{dockerBinary}
+	args = append(args, "exec")
+	args = append(args, "--user")
+	args = append(args, fmt.Sprintf("%d:%d", config.UserId, config.GroupId))
+	args = append(args, "--workdir")
+	args = append(args, config.UserCwd)
+	if terminal.IsTerminal(int(os.Stdout.Fd())) {
+		args = append(args, "--tty")
 	}
-	if minor >= 2 {
-		return nil
-	}
-	return errors.New(fmt.Sprintf("Docker version '%s' lower than desired version '1.2.0'", versionStringParts[2]))
-}
+	// TODO: Handle scp etc
+	args = append(args, "--interactive")
+	args = append(args, id)
+	args = append(args, config.Shell)
 
-func getDockerVersionString() (string, error) {
-	cmd := exec.Command("docker", "-v")
-	o, err := cmd.Output()
-	return string(o), err
-}
-
-func dockerpid(name string) (pid int, err error) {
-	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Pid}}", name)
-	output, err := cmd.Output()
-	if err != nil {
-		return -1, errors.New(err.Error() + ":\n" + string(output))
+	if err := syscall.Exec(args[0], args, os.Environ()); err != nil {
+		return err
 	}
 
-	pid, err = strconv.Atoi(strings.TrimSpace(string(output)))
-
-	if err != nil {
-		return -1, errors.New(err.Error() + ":\n" + string(output))
-	}
-	if pid == 0 {
-		return -1, errors.New("Invalid PID")
-	}
-	return pid, nil
-}
-
-func dockersha(name string) (sha string, err error) {
-	cmd := exec.Command("docker", "inspect", "--format", "{{.Id}}", name)
-	output, err := cmd.Output()
-	if err != nil {
-		return sha, errors.New(err.Error() + ":\n" + string(output))
-	}
-	sha = strings.TrimSpace(string(output))
-	if sha == "" {
-		return "", errors.New("Invalid SHA")
-	}
-	return sha, nil
-}
-
-func dockerstart(config Configuration) (pid int, err error) {
-	cmd := exec.Command("docker", "rm", config.ContainerName)
-	_ = cmd.Run()
-	cmdtxt, err := dockercmdline(config)
-	if err != nil {
-		return -1, err
-	}
-	//fmt.Fprintf(os.Stderr, "docker %s\n", strings.Join(cmdtxt, " "))
-	cmd = exec.Command("docker", cmdtxt...)
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-	err = cmd.Run()
-	if err != nil {
-		return -1, errors.New(err.Error() + ":\n" + output.String())
-	}
-	return dockerpid(config.ContainerName)
-}
-
-func dockercmdline(config Configuration) ([]string, error) {
-	var err error
-	bindSelfAsInit := false
-	init := config.Entrypoint
-	if init == "internal" {
-		init = "/init"
-		bindSelfAsInit = true
-	}
-	thisBinary := "/usr/local/bin/dockersh"
-	if os.Getenv("SHELL") != "/usr/local/bin/dockersh" {
-		thisBinary, _ = filepath.Abs(os.Args[0])
-	}
-	var cmdtxt = []string{"run", "-d", "-u", fmt.Sprintf("%d", config.UserId),
-		"-v", "/etc/passwd:/etc/passwd:ro", "-v", "/etc/group:/etc/group:ro",
-		"--cap-drop", "SETUID", "--cap-drop", "SETGID", "--cap-drop", "NET_RAW",
-		"--cap-drop", "MKNOD"}
-	if len(config.DockerOpt) > 0 {
-		for _, element := range config.DockerOpt {
-			cmdtxt = append(cmdtxt, element)
-		}
-	}
-	if config.MountTmp {
-		cmdtxt = append(cmdtxt, "-v", "/tmp:/tmp")
-	}
-	if config.MountHome {
-		cmdtxt = append(cmdtxt, "-v", fmt.Sprintf("%s:%s:rw", config.MountHomeFrom, config.MountHomeTo))
-	}
-	if bindSelfAsInit {
-		cmdtxt = append(cmdtxt, "-v", thisBinary+":/init")
-	} else {
-		if len(config.ReverseForward) > 0 {
-			return []string{}, errors.New("Cannot configure ReverseForward with a custom init process")
-		}
-	}
-	if config.MountDockerSocket {
-		cmdtxt = append(cmdtxt, "-v", config.DockerSocket+":/var/run/docker.sock")
-	}
-	if len(config.ReverseForward) > 0 {
-		cmdtxt, err = setupReverseForward(cmdtxt, config.ReverseForward)
-		if err != nil {
-			return []string{}, err
-		}
-	}
-	cmdtxt = append(cmdtxt, "--name", config.ContainerName, "--entrypoint", init, config.ImageName)
-	if len(config.Cmd) > 0 {
-		for _, element := range config.Cmd {
-			cmdtxt = append(cmdtxt, element)
-		}
-	} else {
-		cmdtxt = append(cmdtxt, "")
-	}
-
-	return cmdtxt, nil
-}
-
-func validatePortforwardString(element string) error {
-	parts := strings.Split(element, ":")
-	if len(parts) != 2 {
-		return errors.New("Number of parts must be 2")
-	}
-	if _, err := strconv.Atoi(parts[0]); err != nil {
-		return (err)
-	}
-	if _, err := strconv.Atoi(parts[1]); err != nil {
-		return (err)
-	}
 	return nil
-}
-
-func setupReverseForward(cmdtxt []string, reverseForward []string) ([]string, error) {
-	for _, element := range reverseForward {
-		err := validatePortforwardString(element)
-		if err != nil {
-			return cmdtxt, err
-		}
-	}
-	cmdtxt = append(cmdtxt, "--env=DOCKERSH_PORTFORWARD="+strings.Join(reverseForward, ","))
-	return cmdtxt, nil
 }

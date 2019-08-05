@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -36,11 +37,12 @@ type Configuration struct {
 	EnableUserEntrypoint        bool
 	Cmd                         []string
 	EnableUserCmd               bool
-	DockerOpt                   []string
-	EnableUserDockerOpt         bool
+	Env                         []string
+	EnableUserEnv               bool
 	ReverseForward              []string
 	EnableUserReverseForward    bool
 	UserId                      int
+	GroupId                     int
 }
 
 func (c Configuration) Dump() string {
@@ -64,19 +66,37 @@ var defaultConfig = Configuration{
 	Entrypoint:        "internal",
 }
 
-func loadAllConfig(user string, homedir string) (config Configuration, err error) {
-	globalconfig, err := loadConfig(loadableFile("/etc/dockersh"), user)
+func loadAllConfig() (config Configuration, err error) {
+	username, homedir, uid, gid, err := getCurrentUser()
 	if err != nil {
 		return config, err
 	}
-	if globalconfig.EnableUserConfig == true {
-		localconfig, err := loadConfig(loadableFile(fmt.Sprintf("%s/.dockersh", homedir)), user)
+
+	config, err = loadConfig(loadableFile("/etc/dockersh"), username)
+	if err != nil {
+		return config, err
+	}
+
+	if config.EnableUserConfig == true {
+		userconfig, err := loadConfig(loadableFile(fmt.Sprintf("%s/.dockersh", homedir)), username)
 		if err != nil {
 			return config, err
 		}
-		return mergeConfigs(mergeConfigs(defaultConfig, globalconfig, false), localconfig, true), nil
+		config = mergeConfigs(mergeConfigs(defaultConfig, config, false), userconfig, true)
+	} else {
+		config = mergeConfigs(defaultConfig, config, false)
 	}
-	return mergeConfigs(defaultConfig, globalconfig, false), nil
+
+	configInterpolations := configInterpolation{homedir, username}
+	err = getInterpolatedConfig(&config, configInterpolations)
+	if err == nil {
+		config.ContainerName = config.ContainerName + "_" + strings.Replace(config.ImageName, ":", "_", -1)
+	}
+
+	config.UserId = uid
+	config.GroupId = gid
+
+	return config, err
 }
 
 type loadableFile string
@@ -143,8 +163,8 @@ func mergeConfigs(old Configuration, new Configuration, blacklist bool) (ret Con
 	if (!blacklist || old.EnableUserCmd) && len(new.Cmd) > 0 {
 		old.Cmd = new.Cmd
 	}
-	if (!blacklist || old.EnableUserDockerOpt) && len(new.DockerOpt) > 0 {
-		old.DockerOpt = new.DockerOpt
+	if (!blacklist || old.EnableUserEnv) && len(new.Env) > 0 {
+		old.Env = new.Env
 	}
 	if (!blacklist || old.EnableUserReverseForward) && len(new.ReverseForward) > 0 {
 		old.ReverseForward = new.ReverseForward
@@ -168,4 +188,26 @@ func loadConfigFromString(bytes []byte, user string) (config Configuration, err 
 		return inicfg.Dockersh, nil
 	}
 	return mergeConfigs(inicfg.Dockersh, *inicfg.User[user], false), nil
+}
+
+func tmplConfigVar(template string, v *configInterpolation) string {
+	shell := "/bin/bash"
+	r := strings.NewReplacer("%h", v.Home, "%u", v.User, "%s", shell) // Arguments are old, new ...
+	return r.Replace(template)
+}
+
+func getInterpolatedConfig(config *Configuration, configInterpolations configInterpolation) error {
+	config.ContainerUsername = tmplConfigVar(config.ContainerUsername, &configInterpolations)
+	config.MountHomeTo = tmplConfigVar(config.MountHomeTo, &configInterpolations)
+	config.MountHomeFrom = tmplConfigVar(config.MountHomeFrom, &configInterpolations)
+	config.ImageName = tmplConfigVar(config.ImageName, &configInterpolations)
+	config.Shell = tmplConfigVar(config.Shell, &configInterpolations)
+	config.UserCwd = tmplConfigVar(config.UserCwd, &configInterpolations)
+	config.ContainerName = tmplConfigVar(config.ContainerName, &configInterpolations)
+
+	for i, e := range config.Env {
+		config.Env[i] = tmplConfigVar(e, &configInterpolations)
+	}
+
+	return nil
 }

@@ -82,25 +82,20 @@ With docker
 
 Build the Dockerfile in the local directory into an image, and run it like this:
 
-    $ docker build .
-    # Progress, takes a while the first time..
-    ....
-    Successfully built 3006a08eef2e 
-    $ docker run -v /usr/local/bin:/target 3006a08eef2e
+    $ docker build -t dockersh:build . && docker run --rm -i -v /usr/local/bin:/target  -it dockersh:build
 
 Without docker
 --------------
 
-You need to install golang (tested on 1.2 and 1.3), then you should just be able to run:
+You need to install golang (>= 1.12), then you should just be able to run:
 
-    go get
-    make
+    go build
 
-and a 'dockersh' binary will be generated in your ``$GOPATH`` (or your current
-working directory if ``$GOPATH`` isn't set). N.B. This binary needs to be moved to where
-you would like to install it (recommended ``/usr/local/bin``), and owned by root + u+s
-(suid). This is done automatically if you use the Docker based installed, but
-you need to do it manually if you're compiling the binary yourself.
+and a 'dockersh' binary will be generated in your current working
+directory. N.B. This binary needs to be moved to where you would like to
+install it (recommended ``/usr/local/bin``). This is done automatically if
+you use the Docker based installed, but you need to do it manually if you're
+compiling the binary yourself.
 
 Invoking dockersh
 =================
@@ -142,7 +137,7 @@ mountdockersocket | Bool | If to mount the docker socket from the host. (DANGERO
 dockersocket | String | The location of the docker socket from the host. | /var/run/docker.sock | /opt/docker/var/run/docker.sock
 entrypoint | String | The entrypoint for the persistent process to keep the container running | internal | /sbin/yoursupervisor
 cmd | Array of Strings | Additional parameters to pass when launching the container as the command line | | -c'/echo foo'
-dockeropt | Array of Strings | Additional options to pass to docker when launching the container. Can be used to mount additional volumes or limit memory etc. | | -v /some/place:/foovol
+env | Array of Strings | Environment variables to pass to docker when launching the container | | IAM_ROLE=%u
 enableuserconfig | Bool | Set to true to enable reading of per user ``~/.dockersh`` files | false | true
 enableuserimagename | Bool | Set to true to enable reading of imagename parameter from ``~/.dockersh`` files | false | true
 enableusercontainername | Bool | Set to true to enable reading of containername parameter from ``~/.dockersh`` files. (Dangerous!) | false | true
@@ -155,7 +150,7 @@ enableusercontainerusername | bool | Set to true to enable reading of containeru
 enableusershell | Bool | Set to true to enable reading of shell parameter from ``~/.dockersh`` files | false | true
 enableuserentrypoint | Bool | Set to true to enable users to set their own supervisor daemon / entry point to the container for PID 1 | false | true
 enableusercmd | Bool | Set to true to enable users to set the additional command parameters to the entry point | false | true
-enableuserdockeropt | Bool | Set to true to enable users to set additional options to the docker container that's started. (Dangerous!) | false | true
+enableuserenv | Bool | Set to true to enable users to set additional options to the docker container that's started. (Dangerous!) | false | true
 
 Notes:
 
