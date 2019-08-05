@@ -2,23 +2,78 @@ package main
 
 import (
 	"bufio"
-	"encoding/hex"
-	"errors"
+	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
-	"github.com/docker/libcontainer/user"
+	"github.com/sirupsen/logrus"
 )
 
-func main() {
-	if os.Args[0] == "/init" {
-		os.Exit(initMain())
+var debug bool
+
+func init() {
+	flag.BoolVar(&debug, "debug", false, "Enable debug logging. Default : 'false'")
+	flag.Parse()
+
+	lvl, ok := os.LookupEnv("LOG_LEVEL")
+	if ok {
+		ll, err := logrus.ParseLevel(lvl)
+		if err == nil {
+			logrus.SetLevel(ll)
+		}
 	} else {
-		os.Exit(realMain())
+		if debug {
+			logrus.SetLevel(logrus.DebugLevel)
+		} else {
+			logrus.SetLevel(logrus.InfoLevel)
+		}
 	}
+}
+
+func main() {
+	logrus.Debug("Starting dockersh")
+
+	logrus.Debug("Loading all config files")
+	config, err := loadAllConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not load config: %v\n", err)
+		return
+	}
+	logrus.Debugf("Config dump: %+v", config)
+
+	logrus.Debugf("Checking for container: name=%v", config.ContainerName)
+	id, err := isContainerRunning(config.ContainerName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not check container status: %v\n", err)
+		return
+	}
+	logrus.Debugf("Container running? %v", id != "")
+
+	if id == "" {
+		logrus.Debug("Container is not running, starting it")
+		id, err = startContainer(config)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "could not start container: %s\n", err)
+			return
+		}
+	}
+
+	logrus.Debugf("Container ID: %v", id)
+	logrus.Debug("Exec into the container")
+
+	err = execContainer(id, config)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not exec into container: %v\n", err)
+	}
+	// _, _, groups, _, err := user.GetUserGroupSupplementaryHome(username, 65536, 65536, "/")
+	// err = nsenterexec(config.ContainerName, uid, gid, groups, config.UserCwd, config.Shell)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "Error starting shell in new container: %v\n", err)
+	// 	return 1
+	// }
+
+	return
 }
 
 func tmplConfigVar(template string, v *configInterpolation) string {
@@ -56,93 +111,42 @@ func Readln(r *bufio.Reader) (string, error) {
 	return string(ln), err
 }
 
-func gatewayIP() (string, error) {
-	file, err := os.Open("/proc/net/route")
-	if err != nil {
-		return "", errors.New("Could not open /proc/net/route")
-	}
-	defer file.Close()
-	r := bufio.NewReader(file)
-	s, err := Readln(r)
-	ip := ""
-	for err == nil {
-		f := strings.Fields(s)
-		if f[1] == "00000000" {
-			a, _ := hex.DecodeString(f[2])
-			ip = fmt.Sprintf("%v.%v.%v.%v", a[3], a[2], a[1], a[0])
-			err = nil
-			break
-		}
-		s, err = Readln(r)
-	}
-	return ip, err
-}
+// func realMain() int {
+// 	err := dockerVersionCheck()
+// 	if err != nil {
+// 		fmt.Fprintf(os.Stderr, "Docker version error: %v", err)
+// 		return 1
+// 	}
+// 	username, homedir, uid, gid, err := getCurrentUser()
+// 	if err != nil {
+// 		fmt.Fprintf(os.Stderr, "could not get current user: %v", err)
+// 		return 1
+// 	}
+// 	config, err := loadAllConfig(username, homedir)
+// 	if err != nil {
+// 		fmt.Fprintf(os.Stderr, "Could not load config: %v\n", err)
+// 		return 1
+// 	}
+// 	config.UserId = uid
+// 	configInterpolations := configInterpolation{homedir, username}
+// 	err = getInterpolatedConfig(&config, configInterpolations)
+// 	if err != nil {
+// 		panic(fmt.Sprintf("Cannot interpolate config: %v", err))
+// 	}
 
-func initMain() int {
-	fmt.Fprintf(os.Stdout, "started dockersh persistent container\n")
-	pfString := os.Getenv("DOCKERSH_PORTFORWARD")
-	if pfString != "" {
-		fmt.Printf("DOCKERSH_PORTFORWARD file exists; processing...")
-		pfs := strings.Split(pfString, ",")
-		gw, err := gatewayIP()
-		if err != nil {
-			panic(err)
-		}
-		for _, element := range pfs {
-			err := validatePortforwardString(element)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println(element)
-			parts := strings.Split(element, ":") // Parts is hostport:containerport
-			localAddr := "127.0.0.1:" + parts[1]
-			remoteAddr := gw + ":" + parts[0]
-			go proxyMain(localAddr, remoteAddr)
-		}
-	}
-	// Wait for terminating signal
-	sc := make(chan os.Signal, 2)
-	signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT)
-	<-sc
-	return 0
-}
-
-func realMain() int {
-	err := dockerVersionCheck()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Docker version error: %v", err)
-		return 1
-	}
-	username, homedir, uid, gid, err := getCurrentUser()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not get current user: %v", err)
-		return 1
-	}
-	config, err := loadAllConfig(username, homedir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not load config: %v\n", err)
-		return 1
-	}
-	config.UserId = uid
-	configInterpolations := configInterpolation{homedir, username}
-	err = getInterpolatedConfig(&config, configInterpolations)
-	if err != nil {
-		panic(fmt.Sprintf("Cannot interpolate config: %v", err))
-	}
-
-	_, err = dockerpid(config.ContainerName)
-	if err != nil {
-		_, err = dockerstart(config)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "could not start container: %s\n", err)
-			return 1
-		}
-	}
-	_, _, groups, _, err := user.GetUserGroupSupplementaryHome(username, 65536, 65536, "/")
-	err = nsenterexec(config.ContainerName, uid, gid, groups, config.UserCwd, config.Shell)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error starting shell in new container: %v\n", err)
-		return 1
-	}
-	return 0
-}
+// 	_, err = dockerpid(config.ContainerName)
+// 	if err != nil {
+// 		_, err = dockerstart(config)
+// 		if err != nil {
+// 			fmt.Fprintf(os.Stderr, "could not start container: %s\n", err)
+// 			return 1
+// 		}
+// 	}
+// 	_, _, groups, _, err := user.GetUserGroupSupplementaryHome(username, 65536, 65536, "/")
+// 	err = nsenterexec(config.ContainerName, uid, gid, groups, config.UserCwd, config.Shell)
+// 	if err != nil {
+// 		fmt.Fprintf(os.Stderr, "Error starting shell in new container: %v\n", err)
+// 		return 1
+// 	}
+// 	return 0
+// }
