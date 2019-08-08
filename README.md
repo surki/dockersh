@@ -82,25 +82,20 @@ With docker
 
 Build the Dockerfile in the local directory into an image, and run it like this:
 
-    $ docker build .
-    # Progress, takes a while the first time..
-    ....
-    Successfully built 3006a08eef2e 
-    $ docker run -v /usr/local/bin:/target 3006a08eef2e
+    $ docker build -t dockersh:build . && docker run --rm -i -v /usr/local/bin:/target  -it dockersh:build
 
 Without docker
 --------------
 
-You need to install golang (tested on 1.2 and 1.3), then you should just be able to run:
+You need to install golang (>= 1.12), then you should just be able to run:
 
-    go get
-    make
+    go build
 
-and a 'dockersh' binary will be generated in your ``$GOPATH`` (or your current
-working directory if ``$GOPATH`` isn't set). N.B. This binary needs to be moved to where
-you would like to install it (recommended ``/usr/local/bin``), and owned by root + u+s
-(suid). This is done automatically if you use the Docker based installed, but
-you need to do it manually if you're compiling the binary yourself.
+and a 'dockersh' binary will be generated in your current working
+directory. N.B. This binary needs to be moved to where you would like to
+install it (recommended ``/usr/local/bin``). This is done automatically if
+you use the Docker based installed, but you need to do it manually if you're
+compiling the binary yourself.
 
 Invoking dockersh
 =================

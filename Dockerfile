@@ -1,10 +1,8 @@
-FROM google/golang
+FROM golang:1.12
 
-ENV GOPATH $GOPATH:/gopath/src/github.com/docker/libcontainer/vendor
-WORKDIR /gopath/src/github.com/Yelp/dockersh
-ADD . /gopath/src/github.com/Yelp/dockersh/
-RUN go get
-RUN make dockersh && chmod 755 /gopath/src/github.com/Yelp/dockersh/installer.sh && ln /gopath/src/github.com/Yelp/dockersh/dockersh /dockersh && chown root:root dockersh && chmod u+s dockersh
+WORKDIR /dockersh
+ADD . /dockersh/
+RUN cd /dockersh && go build -mod vendor && chmod +x ./installer.sh
 
-CMD ["/gopath/src/github.com/Yelp/dockersh/installer.sh"]
+CMD ["./installer.sh"]
 
