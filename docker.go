@@ -77,7 +77,7 @@ func startContainer(config Configuration) (string, error) {
 
 	var init []string
 	if config.Entrypoint == "internal" {
-		init = []string{"/bin/sh", "-c", "trap : TERM INT; (while true; do sleep 1000; done) & wait"}
+		init = []string{"/bin/sh", "-c", "trap 'exit 0;' SIGINT SIGTERM; while true; do sleep 1000& wait $!; done"}
 	} else {
 		init = []string{config.Entrypoint}
 	}
@@ -174,7 +174,6 @@ func execContainer(id string, config Configuration) error {
 	args = append(args, "--interactive")
 	args = append(args, id)
 	args = append(args, config.Shell)
-	args = append(args, "--login")
 
 	if err := syscall.Exec(args[0], args, os.Environ()); err != nil {
 		return err
